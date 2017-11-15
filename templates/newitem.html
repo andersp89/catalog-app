@@ -1,14 +1,14 @@
 {% extends "main.html" %}
 {% block content %}
-{% include "header.html" %}
 
 <h3>Create new Item</h3>
-<!--
-<form action="{{url_for('newItem')}}" method = 'POST'>
-<input type='text' placeholder="Item Name" size='30' name='name'>
+<form action="{{url_for('newItem', category_name=category_name, category_id=category_id)}}" method = 'POST'>
+<input type='text' placeholder="Item Name" size='30' name='name'><br><br>
+<textarea type='text' name="description" placeholder='Item Description' rows="5" cols="30"></textarea><br><br>
+<input type='text' placeholder="Price" size='20' name='price'><br><br>
 <input type='submit' value='Create'>
 </form>
-<br> -->
-<!-- <a href = "{{ url_for('allItems', category_name=category_name, category_id=category_id)}}">Cancel</a>
--->
+<br>
+<a href = "{{ url_for('allItems', category_name=category_name, category_id=category_id)}}">Cancel</a>
+
 {% endblock %}

@@ -1,16 +1,13 @@
 {% extends "main.html" %}
 {% block content %}
-{% include "header.html" %}
 
-<a href="{{url_for('newItem', category_name=category_name, category_id=category_id)}}">New Item</a>
-<br>
-<h3>{{category_name}}</h3>
+<h3>{{category_name}}</h3><a id="header-link" href ="{{ url_for('newItem', category_name=category_name, category_id=category_id)}}">New Item</a>
 
 {% for i in items %}
 <div id="cat-1">
-<p id="cat-2">{{i.name}}</p>
-<a href="{{url_for('editCategory', category_name=i.name, category_id=i.id)}}">Edit</a>
-<a href="{{url_for('deleteCategory', category_name=i.name, category_id=i.id)}}">Delete</a>
+<a href="{{ url_for('singleItem', category_name=category_name, category_id=category_id, item_name=i.name, item_id=i.id)}}"><p id="cat-2">{{i.name}}</p></a>
+<a href="{{ url_for('editItem', category_name=category_name, category_id=category_id, item_name=i.name, item_id=i.id)}}">Edit</a>
+<a href="{{ url_for('deleteItem', category_name=category_name, category_id=category_id, item_name=i.name, item_id=i.id)}}">Delete</a>
 </div>
 {% endfor %}
 
