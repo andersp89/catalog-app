@@ -28,34 +28,44 @@ def newCategory():
 	else:
 		return render_template('newcategory.html')	
 
-@app.route('/<category_name>/edit')
-def editCategory(category_name):
-	return "Here to edit an existing category"
-
-@app.route('/<category_name>/delete', methods=['GET', 'POST'])
-def deleteCategory(category_name):
+@app.route('/<category_name>/<int:category_id>/edit', methods=['GET', 'POST'])
+def editCategory(category_name, category_id):
 	if request.method == 'POST':
-		deleteCategory = session.query(Category).filter_by(name=category_name).one()
+		editCategoryName = session.query(Category).filter_by(id=category_id).one()
+		editCategoryName.name = request.form['name']
+		session.add(editCategoryName)
+		session.commit()
+		return redirect(url_for('allCategories'))
+	return render_template('editcategory.html', category_name=category_name, category_id=category_id)
+
+@app.route('/<category_name>/<int:category_id>/delete', methods=['GET', 'POST'])
+def deleteCategory(category_name, category_id):
+	if request.method == 'POST':
+		deleteCategory = session.query(Category).filter_by(id=category_id).one()
 		session.delete(deleteCategory)
 		session.commit()
 		#flash('Category Successfully Deleted')
 		return redirect(url_for('allCategories'))
 	else:
-		return render_template('deletecategory.html', category=category_name)
+		return render_template('deletecategory.html', category_name=category_name, category_id=category_id)
 
 
 # Items
-@app.route('/<category_name>')
-def allItems(category_name):
-	return "All items in category"
+@app.route('/<category_name>/<int:category_id>')
+def allItems(category_name, category_id):
+	#Da jeg skal bruge dens ID
+	#category = session.query(Category).order_by(id=category_id).one()
+	items = session.query(Item).filter_by(category_id=category_id).all()
+	#sort_by(asc(Item.name))
+	return render_template('allitems.html', category_name=category_name, category_id=category_id, items=items)
 
 @app.route('/<category_name>/<item_name>')
 def singleItem(category_name, item_name):
 	return "Show single item"
 
-@app.route('/<category_name>/new')
-def newItem(category_name):
-	return "New item"
+@app.route('/<category_name>/<int:category_id>/new')
+def newItem(category_name, category_id):
+	return render_template('newitem.html', category_name=category_name, category_id=category_id)
 
 @app.route('/<category_name>/<item_name>/edit')
 def editItem(category_name, item_name):

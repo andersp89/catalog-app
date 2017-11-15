@@ -2,8 +2,8 @@
 {% block content %}
 {% include "header.html" %}
 
-<h3> Are you sure you want to delete "{{category}}"? </h3>
-<form action="{{ url_for('deleteCategory', category_name=category)}}" method = 'post'>
+<h3> Are you sure you want to delete "{{category_name}}"? </h3>
+<form action="{{ url_for('deleteCategory', category_name=category_name, category_id=category_id)}}" method = 'post'>
 <input type='submit', value = 'Delete'>
 </form>
 <br>
