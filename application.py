@@ -23,7 +23,7 @@ session = DBSession()
 
 # LinkedIn - OAuth 2.0 - Server side implementation
 @app.route('/login-linkedin')
-def linkedin_connect():	
+def linkedin_login():	
 	# Step 1: Authenticate user with OAuth 2.0
 
 	# Settings
@@ -32,18 +32,23 @@ def linkedin_connect():
 	redirect_uri = "http://0.0.0.0:8000/licode"
 	client_secret = "gfaWUCJWGsnqQ54y" # Secret
 	state = "sdafa2121r20SADAFl" # Secret, to prevent CSRF, TODO make a random function instead!
-	scope = "r_basicprofile" # LinkedIn permissions
+	scope = 'r_basicprofile,r_emailaddress' # LinkedIn permissions
 	login_session['state'] = state
 
 	return redirect('{0}&client_id={1}&redirect_uri={2}&state={3}&scope={4}'.format(base_url, client_id, redirect_uri, state, scope))
 
 #=<path:string_value>
 @app.route('/licode', methods=['GET', 'POST'])
-def linkedin_login():	
+def linkedin_connect():	
 	# Step 2: Retrieve basic profile data
 	# Retrieve values from redirect_uri:
-	state = request.args.get('state', None)
-	
+	try:
+		state = request.args.get('state', None)
+	except:
+		response = make_response(json.dumps('Failed to get state from LinkedIn.'), 401)
+		response.headers['Content-Type'] = 'application/json'
+		return response
+
 	# match state, if not send 404 error
 	# if error, redirect_uri has additional parameters:
 	# error: user_cancelled_login user_cancelled_authorize
@@ -51,7 +56,7 @@ def linkedin_login():
 	# state
 	if login_session['state'] != state:
 		response = make_response(json.dumps('Invalid state parameter.'), 401) # WHY: use JSON format in make_response?
-		response.headers['Content-Type'] = 'application/json'
+		response.headers['Content-Type'] = 'application/json' # WHY content type?
 		return response
 
 	
@@ -67,50 +72,73 @@ def linkedin_login():
 	data['client_secret'] = "gfaWUCJWGsnqQ54y" # Secret
 	url = 'https://www.linkedin.com/oauth/v2/accessToken'
 
-	#data = 'grant_type={0}&code={1}&redirect_uri={2}&client_id={3}&client_secret={4}'.format(grant_type, code, redirect_uri, client_id, client_secret)
 	request_linkedin = requests.post('https://www.linkedin.com/oauth/v2/accessToken', data=data).json()
-	
+
+	# A successful access token request will return a JSON object containing the following:	
 	try:	
-		access_token = request_linkedin["access_token"]
-		expires_in = request_linkedin["expires_in"]
-	except ValueError:
-		response = make_response(json.dumps('Failed to get access token and expires in.'), 401)
+		login_session['access_token'] = request_linkedin["access_token"]
+		login_session['expires_in'] = request_linkedin["expires_in"]
+	except:
+		response = make_response(json.dumps('Failed to get access_token and expires_in from LinkedIn.'), 401)
 		response.headers['Content-Type'] = 'application/json'
 		return response
 	
-	#access_token = json.dumps(request_linkedin)['access_token']
+	#return 'my code: ' + data['code'] + '<br> my state: ' + state + '<br> post: ' + str(request_linkedin) + '<br> access token:' + str(access_token) + '<br>' + str(expires_in)
 
+	# Retreieve basic profile data
+	parameters = 'first-name,email-address,picture-url'
+	uri = 'https://api.linkedin.com/v1/people/~:(%s)?format=json' %(parameters)
+	headers = {}
+	headers['Authorization'] = 'Bearer ' + login_session['access_token'] 
+	get_profile = requests.get(uri, headers=headers).json() # WHY must I include json() here, to convert to python dict? It returns in JSON format already!
 
-	
-	#access_token = json.loads(access)['access_token']
-	#access_json = json.loads(status)['post']['access_token']
-	#print('JSON FORMAT FTW!!!!: ' + access_json)
-	#access_token = access_json['access_token']
-	#expires_in = access_json['expires_in']
-	
-	# Acess token response
-	# A successful access token request will return a JSON object containing the following:
-	#access_token = access.access_token
-	#expires_in = access.expires_in # 60 days
+	#return str(get_profile)
 
-	return 'my code: ' + data['code'] + '<br> my state: ' + state + '<br> post: ' + str(request_linkedin) + '<br> access token:' + str(access_token) + '<br>' + str(expires_in)
+	login_session['name'] = get_profile['firstName']
+	login_session['email'] = get_profile['emailAddress']
+	login_session['picture'] = get_profile['pictureUrl']
 
-	# access token, allow for 1000 chars
-	expires_in = '' # 60 days
+	# See if user exists with e-mail, if it doesn't create it
+	user_id = getUserID(login_session['email'])
+	if not user_id:
+		user_id = createUser(login_session)
+		print 'User %s created successfully' % login_session['name'] #TBD!
+	print 'User %s already exists!' % login_session['name']
+	login_session['user_id'] = user_id
 
-	# Step 4: Make authenticated requests
-	# GET /v1/people/~ HTTP/1.1
-	# Host: api.linkedin.com
-	# Connection: Keep-Alive
-	# Authorization: Bearer AQXdSP_W41_UPs5ioT_t8HESyODB4FqbkJ8LrV_5mff4gPODzOYR
+	output = ''
+	output += '<h1>Welcome, '
+	output += login_session['name']
+	output += '<br><br>'
+	output += login_session['email']
+	output += '!</h1>'
+	output += '<img src="'
+	output += login_session['picture']
+	output += ' " style = "width: 100px; height: 100px;border-radius: 150px;-webkit-border-radius: 150px;-moz-border-radius: 150px;"> '
+	#TODO flash("you are now logged in as %s" % login_session['username'])
+	print "done!"
+	return output # Husk, skal laves om til redirect til allCategories ogsaa bruges falsh istedet.
 
-	# If 401 Unaurthorized" response; redirect user back to the start of the auth flow.
+	# Next: disconnect function!
 
-	# Refresh your Access Tokens
-	# If expires_in is outdated, then redirect user back to the start of the auth flow, but skip the part of accepting the dialog box.
+# User Helper Functions
+def createUser(login_session):
+	newUser = User(name=login_session['name'], email=login_session['email'], picture=login_session['picture'])
+	session.add(newUser)
+	session.commit()
+	user = session.query(User).filter_by(email=login_session['email']).one()
+	return user.id
 
+def getUserInfo(user_id):
+	user = session.query(User).filter_by(id=user_id).one()
+	return user
 
-	## Step 2 - retreieve basic profile data (optional)
+def getUserID(email):
+	try:
+		user = session.query(User).filter_by(email=email).one()
+		return user.id
+	except:
+		return None
 
 # Categories
 @app.route('/')
