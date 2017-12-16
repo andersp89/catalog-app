@@ -54,8 +54,8 @@ def linkedin_connect():
         state = request.args.get('state', None)
     except:
         # QQ: Why wouldn't I make flash messages instead of this HTTP respons?
-        response = make_response(json.dumps('''Failed to get state from
-             LinkedIn.'''), 401)
+        response = make_response(json.dumps('Failed to get state from ' +
+            'LinkedIn.'), 401)
         response.headers['Content-Type'] = 'application/json'
         return response
 
@@ -69,8 +69,8 @@ def linkedin_connect():
     try:
         code = request.args.get('code', None)
     except:
-        response = make_response(json.dumps('''Failed to get authorization
-             code from LinkedIn.'''), 401)
+        response = make_response(json.dumps('Failed to get authorization ' +
+            'code from LinkedIn.'), 401)
         response.headers['Content-Type'] = 'application/json'
         return response
 
