@@ -1,80 +1,76 @@
-from flask import Flask, render_template, redirect, url_for, request, flash, jsonify # request: receiving HTTP requests <-
+# Framework and DB
+from flask import Flask, render_template, redirect, url_for, request, flash, jsonify 
 from sqlalchemy import create_engine, asc
 from sqlalchemy.orm import sessionmaker
 from database_setup import Base, User, Category, Item
 
-# Imports for oauth
-# from oauth2client.client import flow_from_clientsecrets
-# from oauth2client.client import FlowExchangeError
-# import httplib2
-import json # python -> JSON
-from flask import make_response # Making HTTP responses
-import requests # Making HTTP requests server ->
-from flask import session as login_session # Login session management server side
+# OAuth
+import json 
+from flask import make_response 
+import requests 
+from flask import session as login_session 
+import random
+import string
 
 
 app = Flask(__name__)
 
+# QQ: How do I wrap db calls in a function and call it once at setup?
 engine = create_engine('sqlite:///catalog.db')
 Base.metadata.bind = engine
 DBSession = sessionmaker(bind=engine)
 session = DBSession()
 
-
 # LinkedIn - OAuth 2.0 - Server side implementation
 @app.route('/login-linkedin')
 def linkedin_login():	
-	# Step 1: Authenticate user with OAuth 2.0
-
-	# Settings
+	# Request Authorization code
 	base_url = 'https://www.linkedin.com/oauth/v2/authorization?response_type=code'
 	client_id = "863720r8ib2vo6"
 	redirect_uri = "http://0.0.0.0:8000/licode"
-	client_secret = "gfaWUCJWGsnqQ54y" # Secret
-	state = "sdafa2121r20SADAFl" # Secret, to prevent CSRF, TODO make a random function instead!
-	scope = 'r_basicprofile,r_emailaddress' # LinkedIn permissions
+	# Secret in production
+	client_secret = "gfaWUCJWGsnqQ54y"
+	# Secret, to prevent CSRF
+	state = ''.join(random.choice(string.ascii_uppercase + string.digits) for x in xrange(32)) 
 	login_session['state'] = state
+	scope = 'r_basicprofile,r_emailaddress' # LinkedIn permissions
 
 	return redirect('{0}&client_id={1}&redirect_uri={2}&state={3}&scope={4}'.format(base_url, client_id, redirect_uri, state, scope))
 
-#=<path:string_value>
 @app.route('/licode', methods=['GET', 'POST'])
 def linkedin_connect():	
-	# Step 2: Retrieve basic profile data
-	# Retrieve values from redirect_uri:
+	# Get state and match with my state (to prevent CSRF)
 	try:
 		state = request.args.get('state', None)
 	except:
-		response = make_response(json.dumps('Failed to get state from LinkedIn.'), 401)
+		response = make_response(json.dumps('Failed to get state from LinkedIn.'), 401) # Why wouldn't I make flash messages instead of this HTTP respons?
 		response.headers['Content-Type'] = 'application/json'
 		return response
 
-	# match state, if not send 404 error
-	# if error, redirect_uri has additional parameters:
-	# error: user_cancelled_login user_cancelled_authorize
-	# error_description
-	# state
 	if login_session['state'] != state:
 		response = make_response(json.dumps('Invalid state parameter.'), 401) # WHY: use JSON format in make_response?
 		response.headers['Content-Type'] = 'application/json' # WHY content type?
 		return response
 
-	
+	# Get authorization code
+	try:
+		code = request.args.get('code', None)
+	except:
+		response = make_response(json.dumps('Failed to get authorization code from LinkedIn.'), 401)
+		response.headers['Content-Type'] = 'application/json'
+		return response
 
-	# Step 3: exchange code for access token
-	
-	# Settings
+	# Get access token and expires in to make requests
 	data = {}
-	data['code'] = request.args.get('code', None)
+	data['code'] = code
 	data['grant_type'] = 'authorization_code'
 	data['redirect_uri'] = "http://0.0.0.0:8000/licode"
 	data['client_id'] = "863720r8ib2vo6"
-	data['client_secret'] = "gfaWUCJWGsnqQ54y" # Secret
+	data['client_secret'] = "gfaWUCJWGsnqQ54y" # Secret in production
 	url = 'https://www.linkedin.com/oauth/v2/accessToken'
 
-	request_linkedin = requests.post('https://www.linkedin.com/oauth/v2/accessToken', data=data).json()
+	request_linkedin = requests.post('https://www.linkedin.com/oauth/v2/accessToken', data=data).json() # Why is it that I don't need a "request", to receive HTTP post call? I just use JSON().
 
-	# A successful access token request will return a JSON object containing the following:	
 	try:	
 		login_session['access_token'] = request_linkedin["access_token"]
 		login_session['expires_in'] = request_linkedin["expires_in"]
@@ -82,46 +78,64 @@ def linkedin_connect():
 		response = make_response(json.dumps('Failed to get access_token and expires_in from LinkedIn.'), 401)
 		response.headers['Content-Type'] = 'application/json'
 		return response
-	
-	#return 'my code: ' + data['code'] + '<br> my state: ' + state + '<br> post: ' + str(request_linkedin) + '<br> access token:' + str(access_token) + '<br>' + str(expires_in)
 
-	# Retreieve basic profile data
+	# Get basic LinkedIn profile data
 	parameters = 'first-name,email-address,picture-url'
 	uri = 'https://api.linkedin.com/v1/people/~:(%s)?format=json' %(parameters)
 	headers = {}
 	headers['Authorization'] = 'Bearer ' + login_session['access_token'] 
-	get_profile = requests.get(uri, headers=headers).json() # WHY must I include json() here, to convert to python dict? It returns in JSON format already!
+	get_profile = requests.get(uri, headers=headers).json()
 
-	#return str(get_profile)
+	try:
+		login_session['name'] = get_profile['firstName']
+		login_session['email'] = get_profile['emailAddress']
+		login_session['picture'] = get_profile['pictureUrl']
+	except:
+		response = make_response(json.dumps('Failed to get retrieve LinkedIn profile data.'), 401)
+		response.headers['Content-Type'] = 'application/json'
+		return response
 
-	login_session['name'] = get_profile['firstName']
-	login_session['email'] = get_profile['emailAddress']
-	login_session['picture'] = get_profile['pictureUrl']
-
-	# See if user exists with e-mail, if it doesn't create it
+	# Check if user exists, if not, then create it
 	user_id = getUserID(login_session['email'])
 	if not user_id:
 		user_id = createUser(login_session)
-		print 'User %s created successfully' % login_session['name'] #TBD!
+		print 'User %s created successfully' % login_session['name']
 	print 'User %s already exists!' % login_session['name']
 	login_session['user_id'] = user_id
+	
+	# flash("you are now logged in as %s" % login_session['username']) QQ
+	return redirect(url_for('allCategories'))
 
-	output = ''
-	output += '<h1>Welcome, '
-	output += login_session['name']
-	output += '<br><br>'
-	output += login_session['email']
-	output += '!</h1>'
-	output += '<img src="'
-	output += login_session['picture']
-	output += ' " style = "width: 100px; height: 100px;border-radius: 150px;-webkit-border-radius: 150px;-moz-border-radius: 150px;"> '
-	#TODO flash("you are now logged in as %s" % login_session['username'])
-	print "done!"
-	return output # Husk, skal laves om til redirect til allCategories ogsaa bruges falsh istedet.
+# Log-out of LinkedIn sign-in
+@app.route('/logout-linkedin')
+def linkedin_logout():	
+	#Check if user is logged out already
+	access_token = login_session.get('access_token')
+	if access_token is None:
+		response = make_response(json.dumps('Current user not connected.'), 401)
+		response.headers['Content-Type'] = 'application/json'
+		return response
 
-	# Next: disconnect function!
+	# Check if user is valid linkedin user
+	uri = 'https://api.linkedin.com/v1/people/~?format=json'
+	headers = {}
+	headers['Authorization'] = 'Bearer ' + login_session['access_token'] 
+	request_linkedin = requests.get(uri, headers=headers)
 
-# User Helper Functions
+	if request_linkedin.status_code == 200:
+		del login_session['access_token']
+		del login_session['name']
+		del login_session['email']
+		del login_session['picture']
+		del login_session['user_id']
+		del login_session['expires_in']
+		return redirect(url_for('allCategories'))
+	else:
+		response = make_response(json.dumps('Failed to revoke token for given user.', 401))
+		response.headers['Content-Type'] = 'application/json'
+		return response
+
+# Helper Functions to authorization
 def createUser(login_session):
 	newUser = User(name=login_session['name'], email=login_session['email'], picture=login_session['picture'])
 	session.add(newUser)
@@ -140,34 +154,50 @@ def getUserID(email):
 	except:
 		return None
 
+def checkIfLoggedIn():
+	if 'name' not in login_session:
+		return False
+	else:
+		return True
+
+
 # Categories
 @app.route('/')
 def allCategories():
 	categories = session.query(Category).order_by(asc(Category.name))
-	return render_template('catalog.html', categories=categories)
+	logged_in = checkIfLoggedIn()
+	return render_template('catalog.html', categories=categories, logged_in=logged_in)
 
 @app.route('/new', methods=['GET', 'POST'])
 def newCategory():
+	if 'name' not in login_session:
+		return redirect(url_for('allCategories'))
 	if request.method == 'POST':
 		newCategory = Category(name=request.form['name'])
 		session.add(newCategory)
 		session.commit()
 		return redirect(url_for('allCategories'))
 	else:
-		return render_template('newcategory.html')	
+		logged_in = checkIfLoggedIn()
+		return render_template('newcategory.html', logged_in=logged_in)	
 
 @app.route('/<category_name>/<int:category_id>/edit', methods=['GET', 'POST'])
 def editCategory(category_name, category_id):
+	if 'name' not in login_session:
+		return redirect(url_for('allCategories'))
 	if request.method == 'POST':
 		editCategoryName = session.query(Category).filter_by(id=category_id).one()
 		editCategoryName.name = request.form['name']
 		session.add(editCategoryName)
 		session.commit()
 		return redirect(url_for('allCategories'))
-	return render_template('editcategory.html', category_name=category_name, category_id=category_id)
+	logged_in = checkIfLoggedIn()
+	return render_template('editcategory.html', category_name=category_name, category_id=category_id, logged_in=logged_in)
 
 @app.route('/<category_name>/<int:category_id>/delete', methods=['GET', 'POST'])
 def deleteCategory(category_name, category_id):
+	if 'name' not in login_session:
+		return redirect(url_for('allCategories'))
 	if request.method == 'POST':
 		deleteCategory = session.query(Category).filter_by(id=category_id).one()
 		session.delete(deleteCategory)
@@ -178,31 +208,39 @@ def deleteCategory(category_name, category_id):
 			session.commit()
 		return redirect(url_for('allCategories'))
 	else:
-		return render_template('deletecategory.html', category_name=category_name, category_id=category_id)
+		logged_in = checkIfLoggedIn()
+		return render_template('deletecategory.html', category_name=category_name, category_id=category_id, logged_in=logged_in)
 
 
 # Items
 @app.route('/<category_name>/<int:category_id>')
 def allItems(category_name, category_id):
 	items = session.query(Item).filter_by(category_id=category_id).order_by(asc(Item.name))
-	return render_template('allitems.html', category_name=category_name, category_id=category_id, items=items)
+	logged_in = checkIfLoggedIn()
+	return render_template('allitems.html', category_name=category_name, category_id=category_id, items=items, logged_in=logged_in)
 
 @app.route('/<category_name>/<int:category_id>/<item_name>/<int:item_id>')
 def singleItem(category_name, category_id, item_name, item_id):
 	item = session.query(Item).filter_by(id=item_id).one()
-	return render_template('singleitem.html', category_name=category_name, category_id=category_id, item=item)
+	logged_in = checkIfLoggedIn()
+	return render_template('singleitem.html', category_name=category_name, category_id=category_id, item=item, logged_in=logged_in)
 
 @app.route('/<category_name>/<int:category_id>/new', methods=['GET', 'POST'])
 def newItem(category_name, category_id):
+	if 'name' not in login_session:
+		return redirect(url_for('allCategories'))
 	if request.method == 'POST':
 		newItem = Item(name=request.form['name'], description=request.form['description'], price=request.form['price'], category_id=category_id)
 		session.add(newItem)
 		session.commit()
 		return redirect(url_for('allItems', category_name=category_name, category_id=category_id))
-	return render_template('newitem.html', category_name=category_name, category_id=category_id)
+	logged_in = checkIfLoggedIn()
+	return render_template('newitem.html', category_name=category_name, category_id=category_id, logged_in=logged_in)
 
 @app.route('/<category_name>/<int:category_id>/<item_name>/<int:item_id>/edit', methods=['GET', 'POST'])
 def editItem(category_name, category_id, item_name, item_id):
+	if 'name' not in login_session:
+		return redirect(url_for('allCategories'))
 	editItem = session.query(Item).filter_by(id=item_id).one()
 	if request.method == 'POST':
 		editItem.name = request.form['name']
@@ -211,16 +249,27 @@ def editItem(category_name, category_id, item_name, item_id):
 		session.add(editItem)
 		session.commit()
 		return redirect(url_for('allItems', category_name=category_name, category_id=category_id))
-	return render_template('edititem.html', category_name=category_name, category_id=category_id, item_name=item_name, item_id=item_id, item=editItem)
+	logged_in = checkIfLoggedIn()
+	return render_template('edititem.html', category_name=category_name, category_id=category_id, item_name=item_name, item_id=item_id, item=editItem, logged_in=logged_in)
 
 @app.route('/<category_name>/<int:category_id>/<item_name>/<int:item_id>/delete', methods=['GET', 'POST'])
 def deleteItem(category_name, category_id, item_name, item_id):
+	if 'name' not in login_session:
+		return redirect(url_for('allCategories'))
 	if request.method == 'POST':
 		deleteItem = session.query(Item).filter_by(id=item_id).one()
 		session.delete(deleteItem)
 		session.commit()
 		return redirect(url_for('allItems', category_name=category_name, category_id=category_id))
-	return render_template('deleteitem.html', category_name=category_name, category_id=category_id, item_name=item_name, item_id=item_id)
+	logged_in = checkIfLoggedIn()
+	return render_template('deleteitem.html', category_name=category_name, category_id=category_id, item_name=item_name, item_id=item_id, logged_in=logged_in)
+
+
+# JSON APIs
+@app.route('/<category_name>/<int:category_id>/<item_name>/<int:item_id>/JSON')
+def singleItemJSON(category_name, category_id, item_name, item_id):
+	item = session.query(Item).filter_by(id=item_id).one()
+	return jsonify(item=item.serialize)
 
 if __name__ == '__main__':
     app.secret_key = '\x82\x0cq:\x12\xbe\x18\xeb\xb3F\xf1\xc5\x9e\xd8\xdd\xaf\xb5/\x90\xd2\xebbR' # SECRET IN PRODUCTION!
