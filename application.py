@@ -15,7 +15,7 @@ import string
 
 app = Flask(__name__)
 
-# QQ: How do I wrap db calls in a function and call it once at setup?
+# QQ: How do I wrap db calls in a function and call it once at program initiation?
 engine = create_engine('sqlite:///catalog.db')
 Base.metadata.bind = engine
 DBSession = sessionmaker(bind=engine)
@@ -43,13 +43,13 @@ def linkedin_connect():
 	try:
 		state = request.args.get('state', None)
 	except:
-		response = make_response(json.dumps('Failed to get state from LinkedIn.'), 401) # Why wouldn't I make flash messages instead of this HTTP respons?
+		response = make_response(json.dumps('Failed to get state from LinkedIn.'), 401) # QQ: Why wouldn't I make flash messages instead of this HTTP respons?
 		response.headers['Content-Type'] = 'application/json'
 		return response
 
 	if login_session['state'] != state:
-		response = make_response(json.dumps('Invalid state parameter.'), 401) # WHY: use JSON format in make_response?
-		response.headers['Content-Type'] = 'application/json' # WHY content type?
+		response = make_response(json.dumps('Invalid state parameter.'), 401) # QQ: Why use JSON format in make_response?
+		response.headers['Content-Type'] = 'application/json'
 		return response
 
 	# Get authorization code
@@ -69,7 +69,7 @@ def linkedin_connect():
 	data['client_secret'] = "gfaWUCJWGsnqQ54y" # Secret in production
 	url = 'https://www.linkedin.com/oauth/v2/accessToken'
 
-	request_linkedin = requests.post('https://www.linkedin.com/oauth/v2/accessToken', data=data).json() # Why is it that I don't need a "request", to receive HTTP post call? I just use JSON().
+	request_linkedin = requests.post('https://www.linkedin.com/oauth/v2/accessToken', data=data).json() # QQ: Why is it that I don't need a "request", to receive HTTP post call? I just use JSON() on "requests" for sending HTTP request.
 
 	try:	
 		login_session['access_token'] = request_linkedin["access_token"]
@@ -103,7 +103,7 @@ def linkedin_connect():
 	print 'User %s already exists!' % login_session['name']
 	login_session['user_id'] = user_id
 	
-	# flash("you are now logged in as %s" % login_session['username']) QQ
+	flash("You are now logged in as %s" % login_session['name'])
 	return redirect(url_for('allCategories'))
 
 # Log-out of LinkedIn sign-in
