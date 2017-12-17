@@ -41,8 +41,6 @@ def linkedin_login():
     state = ''.join(random.choice(string.ascii_uppercase +\
                     string.digits) for x in xrange(32))
     login_session['state'] = state
-    print (state)
-    print (login_session['state'])
 
     scope = 'r_basicprofile,r_emailaddress'  # LinkedIn permissions
 
