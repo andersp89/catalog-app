@@ -38,7 +38,7 @@ def linkedin_login():
     # Secret in production
     client_secret = "gfaWUCJWGsnqQ54y"
     # Secret, to prevent CSRF
-    state = ''.join(random.choice(string.ascii_uppercase +\
+    state = ''.join(random.choice(string.ascii_uppercase +
                     string.digits) for x in xrange(32))
     login_session['state'] = state
 
