@@ -38,9 +38,12 @@ def linkedin_login():
     # Secret in production
     client_secret = "gfaWUCJWGsnqQ54y"
     # Secret, to prevent CSRF
-    state = ''.join(random.choice(string.ascii_uppercase +
+    state = ''.join(random.choice(string.ascii_uppercase +\
                     string.digits) for x in xrange(32))
     login_session['state'] = state
+    print (state)
+    print (login_session['state'])
+
     scope = 'r_basicprofile,r_emailaddress'  # LinkedIn permissions
 
     return redirect('{0}&client_id={1}&redirect_uri={2}&state={3}&scope={4}'
