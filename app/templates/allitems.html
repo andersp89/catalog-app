@@ -1,0 +1,20 @@
+{% extends "main.html" %}
+{% block content %}
+
+<h3>{{category_name}}</h3>
+
+{% if logged_in == True %}
+	<a id="header-link" href ="{{ url_for('newItem', category_name=category_name, category_id=category_id)}}">New Item</a>
+{% endif %}
+
+{% for i in items %}
+<div id="cat-1">
+	<a href="{{ url_for('singleItem', category_name=category_name, category_id=category_id, item_name=i.name, item_id=i.id)}}"><p id="cat-2">{{i.name}}</p></a>
+	{% if logged_in == True %}
+		<a href="{{ url_for('editItem', category_name=category_name, category_id=category_id, item_name=i.name, item_id=i.id)}}">Edit</a>
+		<a href="{{ url_for('deleteItem', category_name=category_name, category_id=category_id, item_name=i.name, item_id=i.id)}}">Delete</a>
+	{% endif %}
+</div>
+{% endfor %}
+
+{% endblock %}
