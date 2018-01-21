@@ -1,9 +1,0 @@
-{% extends "main.html" %}
-{% block content %}
-
-<h3>{{item.name}}</h3>
-<p>{{item.description}}</p>
-<p><b>{{item.price}} $</b></p>
-<a href = "{{ url_for('allItems', category_name=category_name, category_id=category_id)}}">Back</a>
-
-{% endblock %}
