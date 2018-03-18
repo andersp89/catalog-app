@@ -1,36 +1,26 @@
-def application(environ, start_response):
-    status = '200 OK'
-    output = 'Hello Udacity!'
-
-    response_headers = [('Content-type', 'text/plain'), ('Content-Length', str(len(output)))]
-    start_response(status, response_headers)
-
-    return [output]
-
-
 #!/usr/bin/python
 # Framework and DB
-## from flask import Flask, render_template, redirect, url_for, request, flash, \
-##    jsonify
+from flask import Flask, render_template, redirect, url_for, request, flash, \
+    jsonify
 
-##from sqlalchemy import create_engine, asc
-##from sqlalchemy.orm import sessionmaker
-##from database_setup import Base, User, Category, Item
+from sqlalchemy import create_engine, asc
+from sqlalchemy.orm import sessionmaker
+from database_setup import Base, User, Category, Item
 
 # OAuth
-##import json
-##from flask import make_response
-##import requests
-##from flask import session as login_session
-##import random
-##import string
+import json
+from flask import make_response
+import requests
+from flask import session as login_session
+import random
+import string
 
-##app = Flask(__name__)
+app = Flask(__name__)
 
-##engine = create_engine('sqlite:///catalog.db')
-##Base.metadata.bind = engine
-##DBSession = sessionmaker(bind=engine)
-##session = DBSession()
+engine = create_engine('sqlite:///catalog.db')
+Base.metadata.bind = engine
+DBSession = sessionmaker(bind=engine)
+session = DBSession()
 
 
 # LinkedIn - OAuth 2.0 - Server side implementation
@@ -340,7 +330,7 @@ def singleItemJSON(category_name, category_id, item_name, item_id):
     item = session.query(Item).filter_by(id=item_id).one()
     return jsonify(item=item.serialize)
 
-##if __name__ == '__main__':
-##    app.secret_key = "secret_in_production123"  # SECRET IN PRODUCTION!
-##    app.debug = True
-##    app.run(host='0.0.0.0', port=8000)
+if __name__ == '__main__':
+    app.secret_key = "secret_in_production123"  # SECRET IN PRODUCTION!
+    app.debug = True
+    app.run(host='18.195.163.63', port=80)
