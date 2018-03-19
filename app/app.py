@@ -332,6 +332,6 @@ def singleItemJSON(category_name, category_id, item_name, item_id):
 
 if __name__ == '__main__':
     print "hallo med dig"
-    app.secret_key = "secret_in_production123"  # SECRET IN PRODUCTION!
+    #app.secret_key = "secret_in_production123"  # SECRET IN PRODUCTION!
     app.debug = True
     app.run()#host='18.195.163.63', port=80)
